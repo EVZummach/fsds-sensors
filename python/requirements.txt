@@ -68,7 +68,7 @@ six==1.16.0
 stack-data==0.6.2
 tenacity==8.2.2
 threadpoolctl==3.1.0
-tornado==4.5.3
+tornado==6.3.1
 traitlets==5.9.0
 urllib3==2.0.2
 vtk==9.2.6
