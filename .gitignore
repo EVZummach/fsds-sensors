@@ -5,3 +5,8 @@
 /pyvenv.cfg
 /python/__pycache__
 /etc
+/python/main-test.py
+/lidar_data
+/car_data
+/.vscode
+/python/tests.py

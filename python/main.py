@@ -55,7 +55,7 @@ while True:
     #timestamp
     print(f'timestamp: {gps_data["timestamp"]}') 
     #timestamp-utc
-    print(f'timestamp utc: {gps_data["timestamp_utc"]}') 
+    print(f'timestamp utc: {gps_data["timestamp-utc"]}') 
     #standard deviation of horizontal position error
     print(f'eph: {gps_data["timestamp"]}') 
     #standard deviation of vertical position error
@@ -67,14 +67,10 @@ while True:
 
     # Get ground truth data
     car_data = car()
-    #timestamp
-    print(f'timestamp: {car_data["timestamp"]}') 
     #w, x, y, z orientation values
     print(f'orientation: {car_data["orientation"]}')
-    #x, y, z velocity values
-    print(f'velocity: {car_data["velocity"]}')
-    #x, y, z acceleration values
-    print(f'acceleration: {car_data["acceleration"]}')
+    #x, y, z position values
+    print(f'velocity: {car_data["position"]}')
     #roll, pitch, yaw angles (based on orientation)
     print(f'calculated angles: {car_data["angles"]}')
 

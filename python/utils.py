@@ -7,6 +7,7 @@ import numpy as np
 import pyvista as pv
 import open3d as o3d
 import matplotlib.pyplot as plt
+from scipy.spatial import distance
 
 fsds_lib_path = os.path.join(os.path.expanduser("~"), "Formula-Student-Driverless-Simulator", "python")
 sys.path.insert(0, fsds_lib_path)
@@ -74,7 +75,7 @@ class Camera():
 #   Montar um pipeline de filtro do chão
 #   Pipeline de visualização dos dados
 class LiDAR():
-    def __init__(self, client, save_path, lidar_name, save=False):
+    def __init__(self, client, save_path:str, lidar_name:str, save:bool=False):
         """
         Class to store LiDAR data on specified folder.
 
@@ -101,14 +102,14 @@ class LiDAR():
 
     def init_visualizer(self):
         self.vis = o3d.visualization.Visualizer()
-        self.vis.create_window(height=640, width=640)
+        self.vis.create_window(window_name=self.name, height=640, width=640)
         self.pcd = o3d.geometry.PointCloud()
         points = self.__call__()
         self.pcd.points = o3d.utility.Vector3dVector(points)
         self.vis.add_geometry(self.pcd)
 
 
-    def visualizer(self, input_points):
+    def visualizer(self, input_points:np.ndarray):
         # print("vis")
         points = self.corrected_points if input_points is None else input_points
         self.pcd.points = o3d.utility.Vector3dVector(points)
@@ -122,39 +123,70 @@ class LiDAR():
     # corrected is the angle adjusted and offseted LiDAR data. Example: car is in position (0, 0)
     # and a new reading is done at positions (5, 10). corrected will be a global LiDAR reading with 
     # an offset of 5 and 10, respectivelly (while adjusting based on angles)
-    def calculate(self, orientation, position):
+    def calculate(self, orientation:np.ndarray, position:np.ndarray):
         q0, q1, q2, q3 = orientation
+
+        # q0 = q0
+        # q1 = 0
+        # q2 = 0
+        # q3 = q3
+
         rotation_matrix = np.array(([1-2*(q2*q2+q3*q3),2*(q1*q2-q3*q0),2*(q1*q3+q2*q0)],
                                     [2*(q1*q2+q3*q0),1-2*(q1*q1+q3*q3),2*(q2*q3-q1*q0)],
                                     [2*(q1*q3-q2*q0),2*(q2*q3+q1*q0),1-2*(q1*q1+q2*q2)]))
-        
-        final_x, final_y, final_z = [], [], []
-        oriented_x, oriented_y, oriented_z = [], [] ,[]
-        
-        for i in range(0, len(self.lidardata.point_cloud), 3):
-            xyz = self.lidardata.point_cloud[i:i+3]
-            corrected_x, corrected_y, corrected_z = np.matmul(rotation_matrix, np.asarray(xyz))
-            
-            x = corrected_x + position[0]
-            y = corrected_y + position[1]
-            z = corrected_z + position[2]
 
-            oriented_x.append(corrected_x)
-            oriented_y.append(corrected_y)
-            oriented_z.append(corrected_z)
-
-            final_x.append(x)
-            final_y.append(y)
-            final_z.append(z)
+        self.oriented_data = np.dot(self.points, rotation_matrix.T)
+        self.corrected_data = self.oriented_data + position
         
-        self.corrected_data = np.array([final_x, final_y, final_z]).T
-        self.oriented_data = np.array([oriented_x, oriented_y, oriented_z]).T
-        #create_dest_file(self.path, data)
         return self.corrected_data, self.oriented_data
     
-    def filter(self, points):
-        points = points[points[:, 2] >= -0.04]
-        return points
+    def filter(self, points:np.ndarray, bias:int=2):
+        z_data = points[:, 2]
+        z_mean = np.mean(z_data)
+        z_std = np.std(z_data)
+        z_threshold = z_mean+bias*z_std
+        return points[points[:, 2] >= z_threshold]
+
+    def cluster(self, points:np.ndarray, threshold:float, min_height:float, max_height:float):
+        # Calculate the distance of each point to every other point in the point cloud
+        print(len(points))
+        dist = distance.cdist(points[:, 0:2].astype(np.float64), points[:, 0:2].astype(np.float64))
+        # Set the threshold value to define which cones are closer
+        thr = threshold
+        
+        # Get indexes of points that are near each other
+        all_indexes = [np.where(m <= thr)[0].tolist() for m in dist]
+        indexes = list(set(map(tuple, all_indexes)))
+        # Sometimes there aren't any points nearby. If a point is alone, then it is filtered from the readings
+        indexes = [i for i in indexes if len(i) > 1]
+        print(len(indexes))
+        # Loop through the indexes of clusters and define a cluster ID for each index
+        clustered = []
+        for cluster_index in indexes:
+            points_aux = points[list(cluster_index)]
+            if len(points_aux) == 0:
+                # If no points in current index, skip to next index
+                continue
+            avg_points = np.mean(points_aux, axis=0)
+            min_height = np.min(points_aux, axis=0)[2]
+            max_height = np.max(points_aux, axis=0)[2]
+                
+            height = abs(max_height-min_height)
+            number_of_points = len(points_aux)
+            # if height > min_height and height < max_height:
+            clustered.append(np.hstack([avg_points, height, number_of_points]))
+            # Stack 
+        self.clustered = np.vstack(clustered)
+        
+        return self.clustered
+    
+    def plot_clustered(self, position:np.ndarray):
+        plt.pause(0.1)
+        plt.clf()
+        plt.axis([-40, 40, -2, 40])
+        plt.scatter(self.clustered[:,0], self.clustered[:,0], c=np.arange(len(self.clustered)))
+        plt.scatter(position[0], position[1], color='black')
+
 
 class IMU():
     def __init__(self, client, save_path, imu_name, save=False):
