@@ -147,9 +147,8 @@ class LiDAR():
         z_threshold = z_mean+bias*z_std
         return points[points[:, 2] >= z_threshold]
 
-    def cluster(self, points:np.ndarray, threshold:float, min_height:float, max_height:float):
+    def cluster(self, points:np.ndarray, threshold:float, threshold_min_height:float, threshold_max_height:float):
         # Calculate the distance of each point to every other point in the point cloud
-        print(len(points))
         dist = distance.cdist(points[:, 0:2].astype(np.float64), points[:, 0:2].astype(np.float64))
         # Set the threshold value to define which cones are closer
         thr = threshold
@@ -159,7 +158,6 @@ class LiDAR():
         indexes = list(set(map(tuple, all_indexes)))
         # Sometimes there aren't any points nearby. If a point is alone, then it is filtered from the readings
         indexes = [i for i in indexes if len(i) > 1]
-        print(len(indexes))
         # Loop through the indexes of clusters and define a cluster ID for each index
         clustered = []
         for cluster_index in indexes:
@@ -173,18 +171,21 @@ class LiDAR():
                 
             height = abs(max_height-min_height)
             number_of_points = len(points_aux)
-            # if height > min_height and height < max_height:
-            clustered.append(np.hstack([avg_points, height, number_of_points]))
+            if height > threshold_min_height and height < threshold_max_height:
+                clustered.append(np.hstack([avg_points, height, number_of_points]))
             # Stack 
-        self.clustered = np.vstack(clustered)
-        
+        try:
+            self.clustered = np.vstack(clustered)
+        except:
+            print('No points detected!')
+            self.clustered = np.array([])        
         return self.clustered
     
     def plot_clustered(self, position:np.ndarray):
         plt.pause(0.1)
         plt.clf()
-        plt.axis([-40, 40, -2, 40])
-        plt.scatter(self.clustered[:,0], self.clustered[:,0], c=np.arange(len(self.clustered)))
+        plt.axis([-40, 40, -10, 40])
+        plt.scatter(self.clustered[:,0], self.clustered[:,1], c=np.arange(len(self.clustered)))
         plt.scatter(position[0], position[1], color='black')
 
 
